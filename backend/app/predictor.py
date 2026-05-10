@@ -1,18 +1,21 @@
-import os
 import pandas as pd
 import numpy as np
 import joblib
+from pathlib import Path
 
 
 # Resolve paths relative to this file's location
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-_MODELS_DIR = os.path.join(_BASE_DIR, "..", "models")
+_BASE_DIR = Path(__file__).resolve().parent.parent
+_MODELS_DIR = _BASE_DIR / "models"
 
+# Verify models directory exists
+if not _MODELS_DIR.exists():
+    raise FileNotFoundError(f"Models directory not found at: {_MODELS_DIR}")
 
 # Load artefacts once at startup
-model = joblib.load(os.path.join(_MODELS_DIR, "best_model.pkl"))
-scaler = joblib.load(os.path.join(_MODELS_DIR, "scaler.pkl"))
-feature_columns = joblib.load(os.path.join(_MODELS_DIR, "feature_columns.pkl"))
+model = joblib.load(_MODELS_DIR / "best_model.pkl")
+scaler = joblib.load(_MODELS_DIR / "scaler.pkl")
+feature_columns = joblib.load(_MODELS_DIR / "feature_columns.pkl")
 
 print(f"[predictor] Model loaded: {type(model).__name__}")
 print(f"[predictor] Features expected: {len(feature_columns)}")

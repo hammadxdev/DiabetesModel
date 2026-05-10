@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from schemas import PatientData
-from predictor import predict_diabetes_risk
+try:
+    from app.schemas import PatientData
+    from app.predictor import predict_diabetes_risk
+except ImportError:
+    from schemas import PatientData
+    from predictor import predict_diabetes_risk
 
 
 app = FastAPI(
