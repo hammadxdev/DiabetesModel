@@ -1,0 +1,42 @@
+# ========================
+# BACKEND .gitignore
+# FastAPI + ML Pipeline
+# ========================
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+
+# ---------- Virtual Environment ----------
+venv/
+.env
+
+# ---------- Training Artifacts (large, not needed for deployment) ----------
+models/X_train.pkl
+models/X_train_resampled.pkl
+models/X_test_scaled.pkl
+models/y_train_resampled.pkl
+models/y_test.pkl
+models/rf_model.pkl
+models/gb_model.pkl
+models/ab_model.pkl
+
+# ---------- Dataset (too large for git) ----------
+data/
+
+# ---------- Jupyter ----------
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# ---------- Test Files ----------
+test_scenarios.py
+
+# ---------- IDE ----------
+.vscode/
+.idea/
+*.sw?
+.DS_Store

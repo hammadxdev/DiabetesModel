@@ -1,0 +1,69 @@
+# ========================
+# ROOT .gitignore
+# Diabetes Hospital Risk Prediction System
+# ========================
+
+# ---------- Node / Frontend ----------
+node_modules/
+dist/
+dist-ssr/
+*.local
+package-lock.json
+
+# ---------- Python / Backend ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+
+# ---------- Virtual Environment ----------
+backend/venv/
+.env
+
+# ---------- Training Data (large, NOT needed for deployment) ----------
+backend/models/X_train.pkl
+backend/models/X_train_resampled.pkl
+backend/models/X_test_scaled.pkl
+backend/models/y_train_resampled.pkl
+backend/models/y_test.pkl
+backend/models/rf_model.pkl
+backend/models/gb_model.pkl
+backend/models/ab_model.pkl
+backend/data/
+
+# ---------- Jupyter Notebooks Checkpoints ----------
+.ipynb_checkpoints/
+
+# ---------- Test Files ----------
+backend/test_scenarios.py
+
+# ---------- Screenshots (presentation only) ----------
+screenshots/
+
+# ---------- IDE / Editor ----------
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# ---------- OS / Logs ----------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------- Root level junk ----------
+/package.json
+/package-lock.json
+/tailwind.config.js
+
+# ---------- Misc ----------
+.gemini/
