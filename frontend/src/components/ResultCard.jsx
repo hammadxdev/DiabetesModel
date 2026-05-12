@@ -1,104 +1,111 @@
 import React from "react";
-import {
-  HiOutlineShieldCheck,
-  HiOutlineExclamationTriangle,
-  HiOutlineXCircle,
-  HiOutlineHeart,
-  HiOutlineClipboardDocumentCheck,
-  HiOutlineBell,
-} from "react-icons/hi2";
+import { HiOutlineCheckCircle, HiOutlineExclamationTriangle, HiOutlineXCircle,
+         HiOutlineArrowPath, HiOutlineBeaker } from "react-icons/hi2";
 
-const riskConfig = {
-  "Low Risk": {
-    color: "from-emerald-500 to-green-600",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/30",
-    text: "text-emerald-400",
-    icon: HiOutlineShieldCheck,
-    badge: "bg-emerald-500/20 text-emerald-300 ring-emerald-500/30",
-    recommendation: "Continue regular check-ups. Maintain a healthy lifestyle with balanced diet and exercise.",
-    confidence: "The model indicates a low probability of hospital readmission within 30 days.",
-  },
-  "Medium Risk": {
-    color: "from-amber-500 to-orange-600",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/30",
-    text: "text-amber-400",
-    icon: HiOutlineExclamationTriangle,
-    badge: "bg-amber-500/20 text-amber-300 ring-amber-500/30",
-    recommendation: "Schedule follow-up visits. Monitor blood sugar levels closely and review medication adherence.",
-    confidence: "The model indicates a moderate probability of hospital readmission. Close monitoring is advised.",
-  },
-  "High Risk": {
-    color: "from-red-500 to-rose-600",
-    bg: "bg-red-500/10",
-    border: "border-red-500/30",
-    text: "text-red-400",
-    icon: HiOutlineXCircle,
-    badge: "bg-red-500/20 text-red-300 ring-red-500/30",
-    recommendation: "Immediate clinical attention recommended. Conduct comprehensive diabetes management review and consider care coordination.",
-    confidence: "The model indicates a high probability of hospital readmission within 30 days. Urgent intervention suggested.",
-  },
+const config = {
+  "Low Risk":    { icon: HiOutlineCheckCircle,       border: "border-emerald-500/40", bg: "bg-emerald-500/10", text: "text-emerald-400",  bar: "#34d399" },
+  "Medium Risk": { icon: HiOutlineExclamationTriangle, border: "border-amber-500/40",  bg: "bg-amber-500/10",  text: "text-amber-400",   bar: "#fbbf24" },
+  "High Risk":   { icon: HiOutlineXCircle,            border: "border-rose-500/40",    bg: "bg-rose-500/10",   text: "text-rose-400",    bar: "#f87171" },
 };
 
-export default function ResultCard({ prediction }) {
-  const config = riskConfig[prediction] || riskConfig["Low Risk"];
-  const Icon = config.icon;
+const ProbBar = ({ label, value, color }) => (
+  <div className="mb-3">
+    <div className="flex justify-between text-xs text-slate-400 mb-1">
+      <span>{label}</span>
+      <span className="font-semibold">{(value * 100).toFixed(1)}%</span>
+    </div>
+    <div className="w-full bg-slate-700 rounded-full h-2.5">
+      <div className="h-2.5 rounded-full transition-all duration-700"
+        style={{ width: `${value * 100}%`, background: color }} />
+    </div>
+  </div>
+);
+
+export default function ResultCard({ result, onReset }) {
+  if (!result) return null;
+
+  const label = result.risk_label || "Low Risk";
+  const cfg   = config[label] || config["Low Risk"];
+  const Icon  = cfg.icon;
+  const probs = result.probabilities || {};
+  const topFeatures = result.top_risk_features || [];
 
   return (
-    <div className={`glass-card p-6 sm:p-8 ${config.border} border animate-in fade-in duration-500`}>
+    <div className={`rounded-2xl border ${cfg.border} ${cfg.bg} p-6 space-y-5`}>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${config.color} flex items-center justify-center shadow-lg`}>
-          <Icon className="w-6 h-6 text-white" />
-        </div>
+      <div className="flex items-center gap-3">
+        <Icon className={`w-8 h-8 ${cfg.text}`} />
         <div>
-          <h3 className="text-white font-semibold text-lg">Prediction Result</h3>
-          <p className="text-slate-400 text-sm">AI-powered risk assessment</p>
+          <p className="text-xs text-slate-400 uppercase tracking-wider">Prediction Result</p>
+          <h2 className={`text-2xl font-bold ${cfg.text}`}>{label}</h2>
+        </div>
+        <div className="ml-auto text-right">
+          <p className="text-xs text-slate-500">Confidence</p>
+          <p className="text-xl font-bold text-white">{((result.confidence || 0) * 100).toFixed(1)}%</p>
         </div>
       </div>
 
-      {/* Risk Badge */}
-      <div className="flex justify-center mb-6">
-        <span className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-lg font-bold ring-1 ${config.badge}`}>
-          <Icon className="w-5 h-5" />
-          {prediction}
-        </span>
-      </div>
-
-      {/* Info Cards */}
-      <div className="space-y-4">
-        {/* Confidence */}
-        <div className={`${config.bg} rounded-xl p-4 border ${config.border}`}>
-          <div className="flex items-start gap-3">
-            <HiOutlineClipboardDocumentCheck className={`w-5 h-5 mt-0.5 ${config.text} flex-shrink-0`} />
-            <div>
-              <p className="text-sm font-medium text-white mb-1">Assessment</p>
-              <p className="text-sm text-slate-300 leading-relaxed">{config.confidence}</p>
+      {/* Risk Score */}
+      {result.risk_score != null && (
+        <div className="bg-slate-800/60 rounded-xl p-4 flex items-center gap-3">
+          <HiOutlineBeaker className="w-5 h-5 text-cyan-400 flex-shrink-0"/>
+          <div className="flex-1">
+            <div className="flex justify-between text-xs text-slate-400 mb-1">
+              <span>High-Risk Probability Score</span>
+              <span className="text-rose-400 font-bold">{result.risk_score?.toFixed(1)}%</span>
+            </div>
+            <div className="w-full bg-slate-700 rounded-full h-3">
+              <div className="h-3 rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500"
+                style={{ width: `${Math.min(result.risk_score, 100)}%` }} />
             </div>
           </div>
         </div>
+      )}
 
-        {/* Recommendation */}
-        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-          <div className="flex items-start gap-3">
-            <HiOutlineHeart className="w-5 h-5 mt-0.5 text-cyan-400 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-white mb-1">Recommendation</p>
-              <p className="text-sm text-slate-300 leading-relaxed">{config.recommendation}</p>
-            </div>
+      {/* Probability Bars */}
+      <div className="bg-slate-800/40 rounded-xl p-4">
+        <p className="text-xs text-slate-400 mb-3 uppercase tracking-wider">Calibrated Probabilities</p>
+        <ProbBar label="Low Risk"    value={probs.low_risk    ?? 0} color="#34d399" />
+        <ProbBar label="Medium Risk" value={probs.medium_risk ?? 0} color="#fbbf24" />
+        <ProbBar label="High Risk"   value={probs.high_risk   ?? 0} color="#f87171" />
+        <p className="text-xs text-slate-600 mt-2">Threshold used: {result.threshold_used?.toFixed(4)}</p>
+      </div>
+
+      {/* Top Risk Features */}
+      {topFeatures.length > 0 && (
+        <div className="bg-slate-800/40 rounded-xl p-4">
+          <p className="text-xs text-slate-400 mb-3 uppercase tracking-wider">Top Influencing Features</p>
+          <div className="space-y-2">
+            {topFeatures.map(({ feature, value }) => (
+              <div key={feature} className="flex justify-between text-sm">
+                <span className="text-slate-300 font-mono text-xs truncate max-w-[70%]">{feature}</span>
+                <span className="text-cyan-400 font-semibold">{typeof value === 'number' ? value.toFixed(3) : value}</span>
+              </div>
+            ))}
           </div>
         </div>
+      )}
 
-        {/* Disclaimer */}
-        <div className="flex items-start gap-2 pt-2">
-          <HiOutlineBell className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-slate-500 leading-relaxed">
-            This prediction is generated by an ML model trained on historical hospital data. 
-            It should be used as a decision-support tool and not as a definitive clinical diagnosis.
-          </p>
+      {/* Clinical Explanation */}
+      {result.clinical_explanation && (
+        <div className="bg-slate-800/40 rounded-xl p-4">
+          <p className="text-xs text-slate-400 mb-2 uppercase tracking-wider">Clinical Explanation</p>
+          <p className="text-sm text-slate-300 leading-relaxed">{result.clinical_explanation}</p>
         </div>
+      )}
+
+      {/* Recommendation */}
+      <div className={`rounded-xl p-4 border ${cfg.border} bg-black/20`}>
+        <p className="text-xs text-slate-400 mb-1 uppercase tracking-wider">Clinical Recommendation</p>
+        <p className="text-sm text-white leading-relaxed">{result.recommendation}</p>
       </div>
+
+      {/* Reset */}
+      <button onClick={onReset}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-sm font-medium border border-white/10 transition-all">
+        <HiOutlineArrowPath className="w-4 h-4" />
+        New Prediction
+      </button>
     </div>
   );
 }

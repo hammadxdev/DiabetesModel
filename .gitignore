@@ -36,8 +36,14 @@ backend/data/
 # ---------- Jupyter Notebooks Checkpoints ----------
 .ipynb_checkpoints/
 
-# ---------- Test Files ----------
+# ---------- Test / Utility Scripts ----------
 backend/test_scenarios.py
+backend/fix_curves.py
+backend/train_improved.py
+backend/train_improved_native.py
+
+# ---------- Generated Outputs (plots, reports) ----------
+backend/outputs/
 
 # ---------- Screenshots (presentation only) ----------
 screenshots/

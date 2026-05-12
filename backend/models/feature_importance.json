@@ -1,0 +1,84 @@
+{
+  "features": [
+    {
+      "feature": "hospital_load_score_log",
+      "importance": 0.03786635814594431
+    },
+    {
+      "feature": "procedure_intensity",
+      "importance": 0.036671686754792335
+    },
+    {
+      "feature": "num_lab_procedures",
+      "importance": 0.036362327980501194
+    },
+    {
+      "feature": "medication_density",
+      "importance": 0.03623896023396525
+    },
+    {
+      "feature": "time_x_medications",
+      "importance": 0.03533922240372334
+    },
+    {
+      "feature": "age_x_medications",
+      "importance": 0.03523568869896994
+    },
+    {
+      "feature": "chronic_complexity",
+      "importance": 0.03333501757479541
+    },
+    {
+      "feature": "num_medications_log",
+      "importance": 0.030860521080249538
+    },
+    {
+      "feature": "time_in_hospital",
+      "importance": 0.028618684608300807
+    },
+    {
+      "feature": "discharge_disposition_id",
+      "importance": 0.02723567559402451
+    },
+    {
+      "feature": "num_procedures",
+      "importance": 0.02609300191756246
+    },
+    {
+      "feature": "number_diagnoses",
+      "importance": 0.024810304143598288
+    },
+    {
+      "feature": "utilization_score_log",
+      "importance": 0.02236750548275776
+    },
+    {
+      "feature": "age_num",
+      "importance": 0.02123372335478936
+    },
+    {
+      "feature": "admission_type_id",
+      "importance": 0.020290965991350295
+    },
+    {
+      "feature": "total_visits_log",
+      "importance": 0.01857556504728152
+    },
+    {
+      "feature": "num_lab_procedures_qbin",
+      "importance": 0.01837014924410118
+    },
+    {
+      "feature": "admission_severity_score",
+      "importance": 0.017713593477503533
+    },
+    {
+      "feature": "number_diagnoses_qbin",
+      "importance": 0.017431008802377964
+    },
+    {
+      "feature": "admission_source_id",
+      "importance": 0.016910604322631237
+    }
+  ]
+}
