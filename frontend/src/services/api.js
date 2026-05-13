@@ -1,4 +1,4 @@
-const BASE = "https://diabetesmodel.onrender.com/" || "http://localhost:8000";
+const BASE = "https://diabetesmodel.onrender.com" || "http://localhost:8000";
 
 const get = (url) =>
   fetch(`${BASE}${url}`).then((r) => {
