@@ -1,23 +1,21 @@
 {
-  "accuracy": 0.5629360322295371,
-  "macro_f1": 0.31977044334410076,
-  "weighted_f1": 0.4520973824035508,
-  "macro_precision": 0.5274227748330287,
-  "macro_recall": 0.3708759662730487,
-  "roc_auc": 0.6461312372608219,
+  "accuracy": 0.8886705315908421,
+  "macro_f1": 0.47574879042552154,
+  "weighted_f1": 0.8371924668707191,
+  "macro_precision": 0.7602448461946605,
+  "macro_recall": 0.5024484559711491,
+  "roc_auc": 0.6867846738215508,
   "per_class_pr_auc": {
-    "Low Risk": 0.686498810148803,
-    "Medium Risk": 0.4725434682203774,
-    "High Risk": 0.2035681311137491
+    "Not Urgent": 0.9399172943898553,
+    "Urgent (<30)": 0.23654794790407946
   },
   "per_class_brier": {
-    "Low Risk": 0.23267251884221804,
-    "Medium Risk": 0.2210470138848316,
-    "High Risk": 0.096430068135066
+    "Not Urgent": 0.09369880163419397,
+    "Urgent (<30)": 0.09369880163419397
   },
-  "prediction_mode": "argmax",
-  "model_name": "CalibratedStackedEnsemble_Balanced",
+  "prediction_mode": "binary_threshold",
+  "model_name": "CalibratedHistGB_Binary",
   "dataset_size": 101766,
   "feature_count": 107,
-  "train_samples": 131673
+  "train_samples": 81412
 }

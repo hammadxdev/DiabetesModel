@@ -1,16 +1,13 @@
 {
   "dataset_size": 101766,
   "feature_count": 107,
-  "train_samples": 131673,
-  "model_count": 4,
-  "platform_version": "3.0.0",
-  "prediction_mode": "argmax",
-  "optimization": "f1_macro",
-  "resampling": "SMOTE",
+  "train_samples": 81412,
+  "model_count": 1,
+  "platform_version": "4.0.0",
+  "prediction_mode": "binary_threshold",
+  "optimization": "accuracy",
+  "resampling": "none",
   "models": [
-    "HistGB",
-    "HistGB2",
-    "RandomForest",
-    "CalibratedEnsemble"
+    "CalibratedHistGB_Binary"
   ]
 }
