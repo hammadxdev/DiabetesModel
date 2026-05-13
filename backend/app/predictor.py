@@ -1,6 +1,6 @@
 """
-predictor.py — Advanced inference with the calibrated stacked ensemble.
-Mirrors EXACTLY the preprocessing done in train_advanced.py.
+predictor.py — Inference with the binary CalibratedHistGB model.
+Mirrors EXACTLY the preprocessing done in run_training.py / model_training.ipynb.
 """
 import json, pickle, logging
 import numpy as np
@@ -9,15 +9,15 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-_BASE  = Path(__file__).resolve().parent.parent
-_MDL   = _BASE / 'models'
+_BASE = Path(__file__).resolve().parent.parent
+_MDL  = _BASE / 'models'
 
 
 def _pkl(name):
     return pickle.load(open(_MDL / name, 'rb'))
 
 
-# ── Load once at startup ──
+# ── Load once at startup ──────────────────────────────────────────────────────
 model         = _pkl('best_model.pkl')
 scaler        = _pkl('scaler.pkl')
 feature_names = _pkl('feature_names.pkl')
@@ -26,19 +26,22 @@ vt_selector   = _pkl('variance_selector.pkl')
 with open(_MDL / 'meta_info.json') as f:
     _meta = json.load(f)
 
-clips          = _meta['clips']
-log_cols       = _meta['log_cols']
+clips    = _meta['clips']
+log_cols = _meta['log_cols']
 
-log.info(f'[predictor] model={type(model).__name__}  features={len(feature_names)}  mode=argmax')
+log.info(f'[predictor] model={type(model).__name__}  features={len(feature_names)}  mode=binary')
 
-RISK_LABELS = {0: 'Low Risk', 1: 'Medium Risk', 2: 'High Risk'}
+# ── Labels & text ─────────────────────────────────────────────────────────────
+RISK_LABELS = {
+    0: 'Not Urgent',
+    1: 'Urgent — Readmission <30 Days',
+}
 RECOMMENDATIONS = {
-    0: 'Patient is at low risk. Routine follow-up care is recommended.',
-    1: 'Patient is at moderate risk. Schedule follow-up within 30 days and review medication adherence.',
-    2: 'Patient is at HIGH risk of readmission within 30 days. Immediate care coordination and discharge planning required.',
+    0: 'Patient is at low risk of urgent readmission. Routine discharge and follow-up care is recommended.',
+    1: 'Patient is at HIGH risk of readmission within 30 days. Immediate care coordination, detailed discharge planning, and close follow-up within 7 days is strongly recommended.',
 }
 
-# ── ICD-9 map (same as training) ──
+# ── ICD-9 map (same as training) ──────────────────────────────────────────────
 def _map_icd9(code):
     if pd.isnull(code): return 'Other'
     s = str(code).upper().strip()
@@ -68,19 +71,19 @@ def _map_icd9(code):
 
 
 def _engineer(df):
-    df['total_visits']             = df['number_inpatient'] + df['number_outpatient'] + df['number_emergency']
-    df['medication_density']       = df['num_medications'] / df['time_in_hospital'].clip(lower=1)
-    df['procedure_intensity']      = df['num_lab_procedures'] + df['num_procedures']
-    df['chronic_complexity']       = df['number_diagnoses'] * df['num_medications']
-    df['admission_severity_score'] = df['number_inpatient'] * 2 + df['number_emergency']
-    df['utilization_score']        = df['total_visits'] * df['num_medications']
-    df['hospital_load_score']      = df['time_in_hospital'] * df['num_lab_procedures']
+    df['total_visits']      = df['number_inpatient'] + df['number_outpatient'] + df['number_emergency']
+    df['medication_density'] = df['num_medications'] / df['time_in_hospital'].clip(lower=1)
+    df['procedure_intensity'] = df['num_lab_procedures'] + df['num_procedures']
+    df['chronic_complexity'] = df['number_diagnoses'] * df['num_medications']
+    df['admission_severity'] = df['number_inpatient'] * 2 + df['number_emergency']
+    df['utilization_score']  = df['total_visits'] * df['num_medications']
+    df['hospital_load']      = df['time_in_hospital'] * df['num_lab_procedures']
     age_map = {'[0-10)':5,'[10-20)':15,'[20-30)':25,'[30-40)':35,'[40-50)':45,
                '[50-60)':55,'[60-70)':65,'[70-80)':75,'[80-90)':85,'[90-100)':95}
-    df['age_num']              = df['age'].map(age_map).fillna(60)
-    df['age_x_medications']    = df['age_num'] * df['num_medications']
-    df['inpatient_x_diagnoses']= df['number_inpatient'] * df['number_diagnoses']
-    df['time_x_medications']   = df['time_in_hospital'] * df['num_medications']
+    df['age_num']       = df['age'].map(age_map).fillna(60)
+    df['age_x_meds']    = df['age_num'] * df['num_medications']
+    df['inpatient_x_diag'] = df['number_inpatient'] * df['number_diagnoses']
+    df['time_x_meds']   = df['time_in_hospital'] * df['num_medications']
     for col in ['num_medications','number_diagnoses','num_lab_procedures']:
         if col in df.columns:
             df[f'{col}_qbin'] = 0  # single row — bin = 0 (lowest)
@@ -89,9 +92,6 @@ def _engineer(df):
 
 def predict_diabetes_risk(data: dict) -> dict:
     df = pd.DataFrame([data])
-
-    # ICD-9 mapping for diag_1_cat passed directly by API
-    # (user already sends category; we also rename to match training column)
 
     # Engineer features
     df = _engineer(df)
@@ -102,7 +102,7 @@ def predict_diabetes_risk(data: dict) -> dict:
     # Align to training feature set
     df = df.reindex(columns=feature_names, fill_value=0).astype(np.float32)
 
-    # Clipping
+    # Clip outliers
     for col, (lo, hi) in clips.items():
         if col in df.columns:
             df[col] = df[col].clip(lo, hi)
@@ -119,34 +119,38 @@ def predict_diabetes_risk(data: dict) -> dict:
     # Scale
     X_scaled = scaler.transform(df)
 
-    # Predict
-    probs     = model.predict_proba(X_scaled)[0]
-    pred_cls  = int(np.argmax(probs))
-    conf      = float(probs[pred_cls])
-    risk_score = float(probs[2] * 100)
+    # Predict (binary)
+    probs    = model.predict_proba(X_scaled)[0]   # [p_not_urgent, p_urgent]
+    pred_cls = int(np.argmax(probs))
+    conf     = float(probs[pred_cls])
+    p_urgent = float(probs[1])
+    risk_score = round(p_urgent * 100, 2)
 
-    # Top risk features (naive: from feature names with highest absolute OHE value)
+    # Top risk features (by absolute scaled value)
     top_feats = sorted(
         zip(feature_names, X_scaled[0].tolist()),
         key=lambda x: abs(x[1]), reverse=True
     )[:5]
 
     return {
-        'predicted_class':   pred_cls,
-        'risk_label':        RISK_LABELS[pred_cls],
-        'confidence':        round(conf, 4),
+        'predicted_class':  pred_cls,
+        'risk_label':       RISK_LABELS[pred_cls],
+        'confidence':       round(conf, 4),
         'probabilities': {
-            'low_risk':    round(float(probs[0]), 4),
-            'medium_risk': round(float(probs[1]), 4),
-            'high_risk':   round(float(probs[2]), 4),
+            'not_urgent': round(float(probs[0]), 4),
+            'urgent':     round(float(probs[1]), 4),
+            # Keep legacy keys so old frontend code doesn't break
+            'low_risk':   round(float(probs[0]), 4),
+            'medium_risk': 0.0,
+            'high_risk':  round(float(probs[1]), 4),
         },
-        'prediction_mode':   'argmax',
-        'recommendation':    RECOMMENDATIONS[pred_cls],
+        'prediction_mode':  'binary_threshold',
+        'recommendation':   RECOMMENDATIONS[pred_cls],
         'top_risk_features': [{'feature': n, 'value': round(v, 3)} for n, v in top_feats],
         'clinical_explanation': (
-            f'The model assigned a {RISK_LABELS[pred_cls]} classification '
+            f'The model predicts {"URGENT readmission risk" if pred_cls == 1 else "LOW readmission risk"} '
             f'with {conf*100:.1f}% confidence. '
-            f'Class probabilities: Low={probs[0]*100:.1f}%, Med={probs[1]*100:.1f}%, High={probs[2]*100:.1f}%.'
+            f'Probability of urgent readmission (<30 days): {p_urgent*100:.1f}%.'
         ),
-        'risk_score': round(risk_score, 2),
+        'risk_score': risk_score,
     }
