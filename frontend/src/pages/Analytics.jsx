@@ -213,14 +213,18 @@ export default function Analytics() {
 
   /* top stat pills */
   const pills = metrics ? [
-    { label:'Accuracy',       value:`${(metrics.accuracy*100).toFixed(1)}%`, color:C.accent },
-    { label:'Macro F1',       value:`${(metrics.macro_f1*100).toFixed(1)}%`, color:C.violet },
-    { label:'Macro Recall',   value:`${((metrics.macro_recall??0)*100).toFixed(1)}%`, color:C.warning },
-    { label:'Macro Precision',value:`${((metrics.macro_precision??0)*100).toFixed(1)}%`, color:C.blue },
-    { label:'ROC-AUC (OVR)', value:metrics.roc_auc?.toFixed(4), color:C.success },
-    { label:'Low Risk AP',   value:metrics.per_class_pr_auc?.['Low Risk']?.toFixed(3)??metrics.pr_auc?.toFixed(3), color:C.success },
-    { label:'Medium Risk AP',value:metrics.per_class_pr_auc?.['Medium Risk']?.toFixed(3)??'—', color:C.warning },
-    { label:'High Risk AP',  value:metrics.per_class_pr_auc?.['High Risk']?.toFixed(3)??'—', color:C.danger },
+    { label:'Accuracy',           value:`${(metrics.accuracy*100).toFixed(1)}%`,             color:C.accent },
+    { label:'Weighted F1',        value:`${((metrics.weighted_f1??metrics.macro_f1)*100).toFixed(1)}%`, color:C.violet },
+    { label:'Macro Recall',       value:`${((metrics.macro_recall??0)*100).toFixed(1)}%`,     color:C.warning },
+    { label:'Macro Precision',    value:`${((metrics.macro_precision??0)*100).toFixed(1)}%`,  color:C.blue },
+    { label:'ROC-AUC',            value:metrics.roc_auc?.toFixed(4),                          color:C.success },
+    { label:'Not Urgent PR-AUC', value:metrics.per_class_pr_auc?.['Not Urgent']?.toFixed(3)
+                                      ?? metrics.per_class_pr_auc?.['Low Risk']?.toFixed(3)
+                                      ?? '—',                                                  color:C.success },
+    { label:'Urgent PR-AUC',     value:metrics.per_class_pr_auc?.['Urgent (<30)']?.toFixed(3)
+                                      ?? metrics.per_class_pr_auc?.['High Risk']?.toFixed(3)
+                                      ?? '—',                                                  color:C.danger },
+    { label:'Train Samples',     value:metrics.train_samples?.toLocaleString(),               color:C.muted },
   ] : [];
 
   return (
@@ -230,7 +234,7 @@ export default function Analytics() {
           eyebrow="Real-Time Analytics"
           title="Model Performance Dashboard"
           sub={metrics
-            ? `${metrics.dataset_size?.toLocaleString()} patients · ${metrics.feature_count} features · ${metrics.model_name ?? 'CalibratedEnsemble'} · Argmax prediction`
+            ? `${metrics.dataset_size?.toLocaleString()} patients · ${metrics.feature_count} features · ${metrics.model_name ?? 'CalibratedHistGB_Binary'} · Binary classification`
             : 'Loading…'}
         />
 
@@ -347,7 +351,7 @@ export default function Analytics() {
 
             {/* Class Distribution */}
             <motion.div variants={fadeItem} initial="hidden" whileInView="show" viewport={{ once:true }} className="card-premium p-6">
-              <p className="label-premium mb-4" style={{ color:C.accent }}>Training Class Distribution (Post-SMOTE)</p>
+              <p className="label-premium mb-4" style={{ color:C.accent }}>Class Distribution (Binary)</p>
               {loading ? <Skel h="h-36"/> : (
                 <ResponsiveContainer width="100%" height={140}>
                   <BarChart data={classDistData} margin={{ top:4, right:8, bottom:4, left:-8 }}>
@@ -375,11 +379,11 @@ export default function Analytics() {
               ['Dataset Size',   metrics.dataset_size?.toLocaleString()],
               ['Feature Count',  metrics.feature_count],
               ['Train Samples',  metrics.train_samples?.toLocaleString()],
-              ['Prediction Mode',metrics.prediction_mode ?? 'argmax'],
-              ['Optimization',   'f1_macro'],
-              ['Resampling',     'SMOTE'],
-              ['Model',          metrics.model_name?.replace('CalibratedStackedEnsemble_','')],
-              ['Platform',       'v3.0.0'],
+              ['Prediction Mode',metrics.prediction_mode ?? 'binary_threshold'],
+              ['Task',           'Binary Classification'],
+              ['Resampling',     metrics.resampling ?? 'None'],
+              ['Model',          metrics.model_name ?? 'CalibratedHistGB_Binary'],
+              ['Platform',       'v4.0.0'],
             ].map(([k, v]) => (
               <div key={k}>
                 <p className="text-muted mb-0.5 uppercase tracking-wider" style={{ fontSize:'0.625rem' }}>{k}</p>

@@ -1,28 +1,9 @@
 {
-  "HistGB": {
-    "accuracy": 0.586616881202712,
-    "f1_macro": 0.41210684737802716,
-    "roc_auc": 0.6751486358623761,
-    "cv_f1_macro_mean": 0.6405873104852979,
-    "cv_f1_macro_std": 0.0025255069453875368
-  },
-  "HistGB2": {
-    "accuracy": 0.5883855753168911,
-    "f1_macro": 0.41168812570207547,
-    "roc_auc": 0.6758441863925652,
-    "cv_f1_macro_mean": 0.63202687857609,
-    "cv_f1_macro_std": 0.0027851368570209153
-  },
-  "RandomForest": {
-    "accuracy": 0.5654908126166847,
-    "f1_macro": 0.4307744258418386,
-    "roc_auc": 0.6534416510571835,
-    "cv_f1_macro_mean": 0.6105057025802,
-    "cv_f1_macro_std": 0.002322917291387613
-  },
-  "CalibratedEnsemble": {
-    "accuracy": 0.5629360322295371,
-    "f1_macro": 0.31977044334410076,
-    "roc_auc": 0.6461312372608219
+  "CalibratedHistGB_Binary": {
+    "accuracy": 0.8887,
+    "f1_macro": 0.4757,
+    "roc_auc": 0.6868,
+    "weighted_f1": 0.8372,
+    "model_type": "Binary (Urgent <30 vs Not Urgent)"
   }
 }
