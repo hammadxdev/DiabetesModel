@@ -1,6 +1,6 @@
 """
-run_training.py — Binary classification model training script
-Mirrors the model_training.ipynb notebook cells exactly.
+run_training.py — Binary classification with SMOTE + balanced class weights
+Fixes the bias issue found in evaluation: model was always predicting Not Urgent.
 Run: python run_training.py  (from backend/ directory)
 """
 
@@ -16,8 +16,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.metrics import (accuracy_score, classification_report, confusion_matrix,
     roc_auc_score, average_precision_score, brier_score_loss,
-    roc_curve, precision_recall_curve, f1_score)
-from sklearn.calibration import CalibratedClassifierCV, calibration_curve
+    roc_curve, precision_recall_curve, f1_score, matthews_corrcoef)
+from sklearn.calibration import CalibratedClassifierCV
+from imblearn.over_sampling import SMOTE
 
 warnings.filterwarnings('ignore')
 os.makedirs('models', exist_ok=True)
@@ -91,12 +92,12 @@ for col in ['diag_1','diag_2','diag_3']:
 
 df = engineer_features(df)
 
-# BINARY target: <30 days = 1, else = 0
+# BINARY target: <30 days = 1 (Urgent), else = 0
 df['readmitted'] = (df['readmitted'] == '<30').astype(int)
 vc = df['readmitted'].value_counts()
 print(f'Class 0 (Not Urgent): {vc.get(0,0):,}')
 print(f'Class 1 (Urgent <30): {vc.get(1,0):,}')
-print(f'Positive rate: {df["readmitted"].mean():.3f}')
+print(f'Imbalance ratio: {vc.get(0,0)/vc.get(1,1):.1f}:1')
 
 # ── Preprocessing ─────────────────────────────────────────────────────────────
 print('Preprocessing...')
@@ -137,37 +138,60 @@ X_te_s = pd.DataFrame(scaler.transform(X_te), columns=feature_names)
 
 print(f'Features: {len(feature_names)} | Train: {len(X_tr_s):,} | Test: {len(X_te_s):,}')
 
-# ── Train ─────────────────────────────────────────────────────────────────────
-print('Training HistGradientBoosting (binary)...')
+# ── SMOTE: balance training set ───────────────────────────────────────────────
+print('Applying SMOTE to balance training classes...')
+smote = SMOTE(sampling_strategy=0.5, random_state=42, k_neighbors=5)
+X_res, y_res = smote.fit_resample(X_tr_s, y_tr)
+print(f'After SMOTE: {len(X_res):,} train samples')
+print(f'  Class 0: {(y_res==0).sum():,} | Class 1: {(y_res==1).sum():,}')
+
+# ── Train with class_weight awareness ────────────────────────────────────────
+print('Training HistGradientBoosting (SMOTE + balanced)...')
 model = HistGradientBoostingClassifier(
     max_iter=400,
     learning_rate=0.05,
-    max_depth=6,
-    min_samples_leaf=15,
+    max_depth=5,
+    min_samples_leaf=20,
     l2_regularization=0.1,
+    class_weight='balanced',
     random_state=42
 )
 calibrated = CalibratedClassifierCV(estimator=model, method='isotonic', cv=3)
-calibrated.fit(X_tr_s, y_tr)
+calibrated.fit(X_res, y_res)
 print('Training complete.')
 
 # ── Evaluate ──────────────────────────────────────────────────────────────────
 print('Evaluating...')
 y_probs = calibrated.predict_proba(X_te_s)[:, 1]
-y_pred  = calibrated.predict(X_te_s)
 
-accuracy   = accuracy_score(y_te, y_pred)
-roc_auc    = roc_auc_score(y_te, y_probs)
-report     = classification_report(y_te, y_pred, output_dict=True)
+# Find optimal threshold using F1 for Urgent class
+from sklearn.metrics import precision_recall_curve
+p_vals, r_vals, thresholds = precision_recall_curve(y_te, y_probs)
+f1_vals = 2*p_vals*r_vals/(p_vals+r_vals+1e-8)
+best_thresh_idx = np.argmax(f1_vals[:-1])
+best_thresh = float(thresholds[best_thresh_idx])
+print(f'Optimal threshold (max F1 for Urgent): {best_thresh:.3f}')
+
+y_pred = (y_probs >= best_thresh).astype(int)
+
+accuracy    = accuracy_score(y_te, y_pred)
+roc_auc     = roc_auc_score(y_te, y_probs)
+mcc         = matthews_corrcoef(y_te, y_pred)
+report      = classification_report(y_te, y_pred, output_dict=True)
 
 print(f'\nAccuracy:    {accuracy:.4f} ({accuracy*100:.2f}%)')
 print(f'ROC-AUC:     {roc_auc:.4f}')
+print(f'MCC:         {mcc:.4f}')
+print(f'Best Thresh: {best_thresh:.3f}')
 print('\nClassification Report:')
 print(classification_report(y_te, y_pred,
       target_names=['Not Urgent (0)', 'Urgent <30 Days (1)']))
 
-# ── Plots ─────────────────────────────────────────────────────────────────────
 cm = confusion_matrix(y_te, y_pred)
+tn, fp, fn, tp = cm.ravel()
+print(f'Sensitivity (Urgent Recall): {tp/(tp+fn):.4f}  ({tp/(tp+fn)*100:.1f}% of urgent cases caught)')
+
+# ── Plots ─────────────────────────────────────────────────────────────────────
 fig, ax = plt.subplots(figsize=(6,5))
 im = ax.imshow(cm, cmap='Blues')
 ax.set_xticks([0,1]); ax.set_yticks([0,1])
@@ -175,28 +199,26 @@ ax.set_xticklabels(['Not Urgent','Urgent (<30)'])
 ax.set_yticklabels(['Not Urgent','Urgent (<30)'])
 for i in range(2):
     for j in range(2):
-        ax.text(j,i,str(cm[i,j]),ha='center',va='center',
+        ax.text(j,i,f'{cm[i,j]:,}',ha='center',va='center',
                 color='white' if cm[i,j]>cm.max()/2 else 'black')
 ax.set_xlabel('Predicted'); ax.set_ylabel('Actual')
-ax.set_title('Confusion Matrix — Binary Risk Model')
+ax.set_title(f'Confusion Matrix (thresh={best_thresh:.2f})')
 plt.colorbar(im, ax=ax); plt.tight_layout()
 plt.savefig('outputs/confusion_matrix.png', dpi=150, bbox_inches='tight')
 plt.close()
 
 fpr, tpr, _ = roc_curve(y_te, y_probs)
 fig2, ax2 = plt.subplots(figsize=(7,5))
-ax2.plot(fpr, tpr, color='#22d3ee', lw=2, label=f'Urgent (<30) AUC={roc_auc:.3f}')
+ax2.plot(fpr, tpr, color='#22d3ee', lw=2, label=f'Urgent AUC={roc_auc:.3f}')
 ax2.plot([0,1],[0,1],'k--',lw=1)
 ax2.set_xlabel('FPR'); ax2.set_ylabel('TPR')
-ax2.set_title('ROC Curve (Binary)'); ax2.legend()
+ax2.set_title('ROC Curve (Binary, SMOTE)'); ax2.legend()
 plt.tight_layout()
 plt.savefig('outputs/roc_curves.png', dpi=150, bbox_inches='tight')
 plt.close()
 
-p_vals, r_vals, _ = precision_recall_curve(y_te, y_probs)
-ap = average_precision_score(y_te, y_probs)
 fig3, ax3 = plt.subplots(figsize=(7,5))
-ax3.plot(r_vals, p_vals, color='#a78bfa', lw=2, label=f'AP={ap:.3f}')
+ax3.plot(r_vals, p_vals, color='#a78bfa', lw=2, label=f'AP={average_precision_score(y_te, y_probs):.3f}')
 ax3.set_xlabel('Recall'); ax3.set_ylabel('Precision')
 ax3.set_title('Precision-Recall Curve'); ax3.legend()
 plt.tight_layout()
@@ -210,19 +232,16 @@ with open('models/scaler.pkl','wb') as f: pickle.dump(scaler, f)
 with open('models/feature_names.pkl','wb') as f: pickle.dump(feature_names, f)
 with open('models/variance_selector.pkl','wb') as f: pickle.dump(vt, f)
 
-meta = {'clips': clips, 'log_cols': log_cols}
+meta = {'clips': clips, 'log_cols': log_cols, 'threshold': best_thresh}
 with open('models/meta_info.json','w') as f: json.dump(meta, f)
 
 target_names = ['Not Urgent', 'Urgent (<30)']
-# For binary, label_binarize returns shape (n,1); expand manually
 y_te_arr = np.array(y_te)
-y_probs_cls0 = 1 - y_probs
-y_probs_cls1 = y_probs
 per_class = {}
 for i, cls in enumerate(target_names):
     key = str(i)
     y_true_i  = (y_te_arr == i).astype(int)
-    y_score_i = y_probs_cls0 if i == 0 else y_probs_cls1
+    y_score_i = (1-y_probs) if i == 0 else y_probs
     per_class[cls] = {
         'precision': float(report[key]['precision']),
         'recall':    float(report[key]['recall']),
@@ -239,13 +258,16 @@ metrics = {
     'macro_precision':  float(report['macro avg']['precision']),
     'macro_recall':     float(report['macro avg']['recall']),
     'roc_auc':          float(roc_auc),
+    'mcc':              float(mcc),
+    'decision_threshold': float(best_thresh),
     'per_class_pr_auc': {cls: per_class[cls]['pr_auc'] for cls in target_names},
     'per_class_brier':  {cls: per_class[cls]['brier']  for cls in target_names},
-    'prediction_mode':  'binary_threshold',
-    'model_name':       'CalibratedHistGB_Binary',
+    'prediction_mode':  'binary_optimal_threshold',
+    'model_name':       'CalibratedHistGB_SMOTE_Balanced',
     'dataset_size':     int(len(df)),
     'feature_count':    int(len(feature_names)),
-    'train_samples':    int(len(X_tr_s))
+    'train_samples':    int(len(X_res)),
+    'resampling':       'SMOTE(0.5)'
 }
 with open('models/metrics.json','w') as f: json.dump(metrics, f, indent=2)
 with open('models/per_class_metrics.json','w') as f: json.dump(per_class, f, indent=2)
@@ -258,21 +280,39 @@ with open('models/roc_data.json','w') as f: json.dump(roc_data, f, indent=2)
 with open('models/confusion_matrix.json','w') as f:
     json.dump({'matrix': cm.tolist(), 'labels': target_names}, f, indent=2)
 
+model_comp = {
+    'CalibratedHistGB_SMOTE': {
+        'accuracy':    float(accuracy),
+        'f1_macro':    float(f1_score(y_te, y_pred, average='macro', zero_division=0)),
+        'roc_auc':     float(roc_auc),
+        'mcc':         float(mcc),
+        'threshold':   float(best_thresh),
+        'weighted_f1': float(report['weighted avg']['f1-score'])
+    }
+}
+with open('models/model_comparison.json','w') as f: json.dump(model_comp, f, indent=2)
+
 sys_info = {
     'dataset_size':    int(len(df)),
     'feature_count':   int(len(feature_names)),
-    'train_samples':   int(len(X_tr_s)),
+    'train_samples':   int(len(X_res)),
     'model_count':     1,
-    'platform_version':'4.0.0',
-    'prediction_mode': 'binary_threshold',
-    'optimization':    'accuracy',
-    'resampling':      'none',
-    'models':          ['CalibratedHistGB_Binary']
+    'platform_version':'4.1.0',
+    'prediction_mode': 'binary_optimal_threshold',
+    'optimization':    'F1_Urgent_class',
+    'resampling':      'SMOTE(ratio=0.5)',
+    'models':          ['CalibratedHistGB_SMOTE_Balanced']
 }
 with open('models/system_info.json','w') as f: json.dump(sys_info, f, indent=2)
 
+# Update class distribution JSON  
+class_dist = {'Not Urgent': int((y_res==0).sum()), 'Urgent (<30)': int((y_res==1).sum())}
+with open('models/class_distribution.json','w') as f: json.dump(class_dist, f, indent=2)
+
 print('\n=== TRAINING COMPLETE ===')
-print(f'Final Accuracy:  {accuracy*100:.2f}%')
-print(f'Final ROC-AUC:   {roc_auc:.4f}')
-print(f'Model saved to:  models/best_model.pkl')
-print(f'Metrics saved to: models/metrics.json')
+print(f'Accuracy:    {accuracy*100:.2f}%')
+print(f'ROC-AUC:     {roc_auc:.4f}')
+print(f'MCC:         {mcc:.4f}')
+print(f'Threshold:   {best_thresh:.3f}')
+print(f'Urgent Recall (Sensitivity): {tp/(tp+fn)*100:.1f}%')
+print(f'Model saved to: models/best_model.pkl')

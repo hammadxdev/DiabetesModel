@@ -1,9 +1,10 @@
 {
-  "CalibratedHistGB_Binary": {
-    "accuracy": 0.8887,
-    "f1_macro": 0.4757,
-    "roc_auc": 0.6868,
-    "weighted_f1": 0.8372,
-    "model_type": "Binary (Urgent <30 vs Not Urgent)"
+  "CalibratedHistGB_SMOTE": {
+    "accuracy": 0.674904195735482,
+    "f1_macro": 0.5202268948343659,
+    "roc_auc": 0.6177394427130652,
+    "mcc": 0.12098854058341321,
+    "threshold": 0.0943564430189691,
+    "weighted_f1": 0.731852531405141
   }
 }

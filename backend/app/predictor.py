@@ -26,10 +26,11 @@ vt_selector   = _pkl('variance_selector.pkl')
 with open(_MDL / 'meta_info.json') as f:
     _meta = json.load(f)
 
-clips    = _meta['clips']
-log_cols = _meta['log_cols']
+clips     = _meta['clips']
+log_cols  = _meta['log_cols']
+THRESHOLD = float(_meta.get('threshold', 0.5))   # optimal F1 threshold
 
-log.info(f'[predictor] model={type(model).__name__}  features={len(feature_names)}  mode=binary')
+log.info(f'[predictor] model={type(model).__name__}  features={len(feature_names)}  threshold={THRESHOLD:.3f}')
 
 # ── Labels & text ─────────────────────────────────────────────────────────────
 RISK_LABELS = {
@@ -119,11 +120,11 @@ def predict_diabetes_risk(data: dict) -> dict:
     # Scale
     X_scaled = scaler.transform(df)
 
-    # Predict (binary)
+    # Predict (binary) using optimal threshold
     probs    = model.predict_proba(X_scaled)[0]   # [p_not_urgent, p_urgent]
-    pred_cls = int(np.argmax(probs))
-    conf     = float(probs[pred_cls])
     p_urgent = float(probs[1])
+    pred_cls = 1 if p_urgent >= THRESHOLD else 0
+    conf     = p_urgent if pred_cls == 1 else float(probs[0])
     risk_score = round(p_urgent * 100, 2)
 
     # Top risk features (by absolute scaled value)
