@@ -2,15 +2,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 /* ── Helpers ───────────────────────────────────────────── */
 const RISK_META = {
-  'Low Risk':    { color: '#22C55E', bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.25)',   textClass: 'text-emerald-400' },
-  'Medium Risk': { color: '#F59E0B', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)',  textClass: 'text-amber-400'  },
-  'High Risk':   { color: '#EF4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.25)',   textClass: 'text-rose-400'   },
+  'Not Urgent': { color: '#22C55E', bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.25)', textClass: 'text-emerald-400' },
+  'Urgent — Readmission <30 Days': { color: '#EF4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)', textClass: 'text-rose-400' },
 };
 
 /* Entropy as uncertainty proxy: H = -sum(p * log2(p)) */
-function shannonEntropy(p0, p1, p2) {
+function shannonEntropy(p0, p1) {
   const safe = (p) => (p > 0 ? -p * Math.log2(p) : 0);
-  return safe(p0) + safe(p1) + safe(p2);
+  return safe(p0) + safe(p1);
 }
 
 /* ── Animated Probability Bar ─────────────────────────── */
@@ -132,24 +131,19 @@ function ShapNarrative({ features, riskLabel, probs }) {
     return key ? featureLabels[key] : f.feature.replace(/_/g, ' ').replace(' log', '');
   });
 
-  const dominantProb = Math.max(probs.low_risk ?? 0, probs.medium_risk ?? 0, probs.high_risk ?? 0);
+  const dominantProb = Math.max(probs.not_urgent ?? 0, probs.urgent ?? 0);
   const certaintyStr = dominantProb >= 0.7 ? 'strong' : dominantProb >= 0.5 ? 'moderate' : 'weak';
 
   const narratives = {
-    'Low Risk': `The model shows ${certaintyStr} confidence toward Low Risk classification. 
+    'Not Urgent': `The model shows ${certaintyStr} confidence toward Not Urgent classification. 
       Key stabilising factors include ${topNames[0] || 'clinical parameters'} and 
       ${topNames[1] || 'medication profile'}. ${dominantProb < 0.65 ? 
-      'Some overlap with Medium Risk patterns is present — routine monitoring is advised.' : 
+      'Some overlap with High Risk patterns is present — routine monitoring is advised.' : 
       'Clinical indicators are broadly within expected low-risk ranges.'}`,
-    'Medium Risk': `This patient presents with ${certaintyStr} Medium Risk indicators. 
-      Elevated ${topNames[0] || 'clinical signals'} and ${topNames[1] || 'utilization patterns'} 
-      are the primary contributing factors. ${dominantProb < 0.6 ? 
-      'Probability distribution overlaps both Low and High Risk — careful clinical review recommended.' :
-      'Proactive follow-up and medication review within 30 days is advised.'}`,
-    'High Risk': `High Risk classification is driven by elevated ${topNames[0] || 'clinical indicators'}, 
+    'Urgent — Readmission <30 Days': `Urgent classification is driven by elevated ${topNames[0] || 'clinical indicators'}, 
       compounded by ${topNames[1] || 'utilization history'} and ${topNames[2] || 'diagnostic complexity'}. 
       ${dominantProb < 0.5 ? 
-      'Note: probability mass is distributed — this is a borderline High Risk case requiring clinical judgment.' :
+      'Note: probability mass is distributed — this is a borderline Urgent case requiring clinical judgment.' :
       'Immediate care coordination and discharge planning is strongly recommended.'}`,
   };
 
@@ -170,7 +164,7 @@ function ShapNarrative({ features, riskLabel, probs }) {
         </span>
       </div>
       <p className="text-sm leading-relaxed" style={{ color: '#C4C4C4' }}>
-        {narratives[riskLabel] || narratives['Low Risk']}
+        {narratives[riskLabel] || narratives['Not Urgent']}
       </p>
       {topNames.length > 0 && (
         <div>
@@ -190,7 +184,7 @@ function ShapNarrative({ features, riskLabel, probs }) {
 }
 
 /* ── Risk Distribution Donut (SVG) ───────────────────── */
-function RiskDonut({ low, medium, high }) {
+function RiskDonut({ low, high }) {
   const size = 120;
   const r = 44;
   const cx = size / 2;
@@ -198,9 +192,8 @@ function RiskDonut({ low, medium, high }) {
   const circ = 2 * Math.PI * r;
 
   const segments = [
-    { value: low,    color: '#22C55E', label: 'Low'    },
-    { value: medium, color: '#F59E0B', label: 'Mid'    },
-    { value: high,   color: '#EF4444', label: 'High'   },
+    { value: low,    color: '#22C55E', label: 'Not Urgent' },
+    { value: high,   color: '#EF4444', label: 'Urgent'   },
   ];
 
   let offset = 0;
@@ -261,17 +254,16 @@ function RiskDonut({ low, medium, high }) {
 export default function ResultPanel({ result }) {
   if (!result) return null;
 
-  const label   = result.risk_label || 'Low Risk';
-  const meta    = RISK_META[label] || RISK_META['Low Risk'];
+  const label   = result.risk_label || 'Not Urgent';
+  const meta    = RISK_META[label] || RISK_META['Not Urgent'];
   const probs   = result.probabilities || {};
-  const p0      = probs.low_risk    ?? 0;
-  const p1      = probs.medium_risk ?? 0;
-  const p2      = probs.high_risk   ?? 0;
+  const p0      = probs.not_urgent  ?? 0;
+  const p1      = probs.urgent      ?? 0;
   const conf    = result.confidence ?? 0;
   const features = result.top_risk_features || [];
 
-  const entropy    = shannonEntropy(p0, p1, p2);
-  const maxEntropy = Math.log2(3); // ~1.585 bits for 3 classes
+  const entropy    = shannonEntropy(p0, p1);
+  const maxEntropy = 1; // 1 bit for 2 classes
 
   return (
     <motion.div
@@ -286,12 +278,11 @@ export default function ResultPanel({ result }) {
       <div className="card-premium p-5" style={{ borderColor: meta.border }}>
         <p className="text-[10px] uppercase tracking-widest text-muted mb-4">Risk Probability Distribution</p>
 
-        <RiskDonut low={p0} medium={p1} high={p2} />
+        <RiskDonut low={p0} high={p1} />
 
         <div className="mt-5 space-y-2">
-          <ProbBar label="Low Risk"    value={p0} color="#22C55E" dominant={label === 'Low Risk'} />
-          <ProbBar label="Medium Risk" value={p1} color="#F59E0B" dominant={label === 'Medium Risk'} />
-          <ProbBar label="High Risk"   value={p2} color="#EF4444" dominant={label === 'High Risk'} />
+          <ProbBar label="Not Urgent" value={p0} color="#22C55E" dominant={label === 'Not Urgent'} />
+          <ProbBar label="Urgent (<30 Days)" value={p1} color="#EF4444" dominant={label === 'Urgent — Readmission <30 Days'} />
         </div>
       </div>
 
